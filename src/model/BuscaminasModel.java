@@ -1,6 +1,8 @@
 package model;
 
 import java.io.*;
+import java.util.LinkedList;
+import java.util.Queue;
 import java.util.Random;
 import exceptions.CasillaYaDescubiertaException;
 
@@ -14,6 +16,11 @@ public class BuscaminasModel implements Serializable {
     private static final long serialVersionUID = 1L;
 
     public BuscaminasModel(int tamaño, int numMinas) {
+        // Aseguramos que el tamaño sea 10x10 si no se proporciona otro tamaño
+        if (tamaño != 10 || numMinas < 10 || numMinas > tamaño * tamaño) {
+            throw new IllegalArgumentException("El tamaño del tablero debe ser 10x10 y el número de minas debe ser válido.");
+        }
+
         this.tamaño = tamaño;
         this.tablero = new int[tamaño][tamaño];
         this.revelado = new boolean[tamaño][tamaño];
@@ -59,28 +66,45 @@ public class BuscaminasModel implements Serializable {
     }
 
     public boolean revelarCasilla(int fila, int columna) throws CasillaYaDescubiertaException {
-        if (revelado[fila][columna]) throw new CasillaYaDescubiertaException("La casilla ya está descubierta.");
+        if (fila < 0 || fila >= tamaño || columna < 0 || columna >= tamaño) {
+            throw new IllegalArgumentException("Coordenadas fuera de los límites del tablero.");
+        }
+        if (revelado[fila][columna]) {
+            throw new CasillaYaDescubiertaException("La casilla ya está descubierta.");
+        }
         if (marcado[fila][columna]) return false;
 
-        revelado[fila][columna] = true;
+        // Usar una cola para manejar la revelación de casillas
+        Queue<int[]> porRevelar = new LinkedList<>();
+        porRevelar.add(new int[]{fila, columna});
 
-        if (tablero[fila][columna] == -1) {
-            juegoTerminado = true;
-            return true; // Mina encontrada
-        }
+        while (!porRevelar.isEmpty()) {
+            int[] actual = porRevelar.poll();
+            int f = actual[0];
+            int c = actual[1];
 
-        if (tablero[fila][columna] == 0) {
-            // Revelar adyacentes
-            for (int i = -1; i <= 1; i++) {
-                for (int j = -1; j <= 1; j++) {
-                    int nfila = fila + i, ncolumna = columna + j;
-                    if (nfila >= 0 && nfila < tamaño && ncolumna >= 0 && ncolumna < tamaño) {
-                        revelarCasilla(nfila, ncolumna);
+            if (revelado[f][c]) continue; // Si ya se reveló, pasar a la siguiente
+
+            revelado[f][c] = true;
+
+            if (tablero[f][c] == -1) {
+                juegoTerminado = true;
+                return true; // Encontrada una mina
+            }
+
+            if (tablero[f][c] == 0) {
+                for (int i = -1; i <= 1; i++) {
+                    for (int j = -1; j <= 1; j++) {
+                        int nf = f + i, nc = c + j;
+                        if (nf >= 0 && nf < tamaño && nc >= 0 && nc < tamaño && !revelado[nf][nc]) {
+                            porRevelar.add(new int[]{nf, nc});
+                        }
                     }
                 }
             }
         }
-        return false;
+
+        return false; // No es mina, ni juego terminado
     }
 
     public void marcarCasilla(int fila, int columna) {
@@ -92,13 +116,19 @@ public class BuscaminasModel implements Serializable {
     }
 
     public boolean esVictoria() {
+        // Recorrer todas las casillas del tablero
         for (int fila = 0; fila < tamaño; fila++) {
             for (int columna = 0; columna < tamaño; columna++) {
-                if (!revelado[fila][columna] && tablero[fila][columna] != -1) return false;
+                // Si hay una casilla no revelada que no sea mina, no hay victoria
+                if (!revelado[fila][columna] && tablero[fila][columna] != -1) {
+                    return false;
+                }
             }
         }
+        // Si todas las casillas no minadas están reveladas, se considera victoria
         return true;
     }
+
 
     public String obtenerTablero() {
         StringBuilder sb = new StringBuilder();
@@ -143,4 +173,15 @@ public class BuscaminasModel implements Serializable {
             return (BuscaminasModel) ois.readObject();
         }
     }
+
+    // Método solo para pruebas (puedes eliminarlo en producción)
+    public int[][] obtenerEstadoTablero() {
+        return tablero;
+    }
+
+    // Método para verificar si una casilla está revelada
+    public boolean[][] obtenerEstadoRevelado() {
+        return revelado;
+    }
+
 }
