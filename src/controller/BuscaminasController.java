@@ -2,9 +2,12 @@ package controller;
 
 import model.BuscaminasModel;
 import view.BuscaminasView;
+import exceptions.CasillaYaDescubiertaException;
+
+import java.io.IOException;
 
 public class BuscaminasController {
-    private final BuscaminasModel model;
+    private BuscaminasModel model;
     private final BuscaminasView view;
 
     public BuscaminasController(BuscaminasModel model, BuscaminasView view) {
@@ -13,29 +16,52 @@ public class BuscaminasController {
     }
 
     public void iniciarJuego() {
-        view.mostrarMensaje("\nBienvenido a Buscaminas\n");
+        while (!model.esJuegoTerminado()) {
+            view.mostrarTablero(model.obtenerTablero());
+            String accion = view.solicitarAccion();
 
-        while (model.getIntentosRestantes() > 0 && model.getMinasRestantes() > 0) {
-            int[] coordenadas = view.pedirCoordenadas();
-            int x = coordenadas[0];
-            int y = coordenadas[1];
+            try {
+                if (accion.equalsIgnoreCase("G")) {
+                    view.mostrarMensaje("Ingresa el nombre del archivo para guardar:");
+                    String nombreArchivo = view.solicitarAccion();
+                    model.guardarEstado(nombreArchivo);
+                    view.mostrarMensaje("¡Juego guardado exitosamente!");
+                } else if (accion.equalsIgnoreCase("C")) {
+                    view.mostrarMensaje("Ingresa el nombre del archivo a cargar:");
+                    String nombreArchivo = view.solicitarAccion();
+                    model = BuscaminasModel.cargarEstado(nombreArchivo);
+                    view.mostrarMensaje("¡Juego cargado exitosamente!");
+                } else {
+                    procesarAccion(accion);
+                }
 
-            if (x < 0 || x >= 20 || y < 0 || y >= 20) {
-                view.mostrarMensaje("Coordenadas fuera de rango. Intente de nuevo.");
-                continue;
+                if (model.esVictoria()) {
+                    view.mostrarTablero(model.obtenerTablero());
+                    view.mostrarMensaje("¡Ganaste! Has descubierto todas las casillas.");
+                    break;
+                }
+            } catch (IOException e) {
+                view.mostrarMensaje("Error al manejar el archivo: " + e.getMessage());
+            } catch (ClassNotFoundException e) {
+                view.mostrarMensaje("El archivo no contiene un juego válido: " + e.getMessage());
+            } catch (Exception e) {
+                view.mostrarMensaje("Entrada inválida. Intenta de nuevo.");
             }
-
-            boolean minaEncontrada = model.esMina(x, y);
-            int minasCercanas = model.contarMinasCercanas(x, y);
-            model.marcarIntento(minaEncontrada);
-
-            view.mostrarResultado(minaEncontrada, minasCercanas, model.getIntentosRestantes(), model.getMinasRestantes());
         }
+    }
 
-        if (model.getMinasRestantes() == 0) {
-            view.mostrarMensaje("¡Ganaste!");
+    private void procesarAccion(String accion) throws Exception {
+        if (accion.startsWith("M")) {
+            int fila = Integer.parseInt(accion.substring(2)) - 1;
+            int columna = accion.charAt(1) - 'A';
+            model.marcarCasilla(fila, columna);
         } else {
-            view.mostrarMensaje("¡Perdiste!");
+            int fila = Integer.parseInt(accion.substring(1)) - 1;
+            int columna = accion.charAt(0) - 'A';
+            if (model.revelarCasilla(fila, columna)) {
+                view.mostrarMensaje("¡Perdiste! Encontraste una mina.");
+                model.guardarEstado("ultima_partida.dat"); // Guarda la última partida automáticamente
+            }
         }
     }
 }
